@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot with File Upload</title>
+  <link rel="stylesheet" href="static/model.css">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Chatbot with File Upload</h1>
+
+    <!-- File Upload Section -->
+    <form id="uploadForm" action="http://127.0.0.1:5000/upload" method="POST" enctype="multipart/form-data">
+      <div class="file-upload">
+        <label for="fileInput">Upload files:</label>
+        <input type="file" id="fileInput" name="files" multiple>
+        <button type="submit" class="upload-btn">Upload Files</button>
+      </div>
+    </form>
+
+    <!-- Progress Feedback -->
+    <div id="uploadStatus"></div>
+
+    <!-- Question Section (appears after file upload) -->
+    <form id="questionForm" method="POST">
+      <div class="question-section">
+        <label for="questionInput">Ask a question:</label>
+        <input type="text" id="questionInput" name="query" placeholder="Ask a question..." disabled>
+        <button type="button" id="askButton" class="ask-btn" disabled>Start Conversation</button>
+      </div>
+    </form>
+
+    <!-- Chat Display Section -->
+    <div id="chatbox" class="chatbox"></div>
+  </div>
+
+  <script>
+    $(document).ready(function () {
+      // Handle file upload via AJAX
+      $('#uploadForm').on('submit', function (e) {
+        e.preventDefault();  // Prevent default form submission
+        var formData = new FormData(this);
+        $('#uploadStatus').html('Uploading...');
+        
+        $.ajax({
+          url: 'http://127.0.0.1:5000/upload',
+          type: 'POST',
+          data: formData,
+          processData: false,
+          contentType: false,
+          success: function (response) {
+            $('#uploadStatus').html('Upload successful!');
+            $('#questionInput').prop('disabled', false);
+            $('#askButton').prop('disabled', false);
+          },
+          error: function () {
+            $('#uploadStatus').html('Upload failed.');
+          }
+        });
+      });
+
+      // Handle question asking
+      $('#askButton').on('click', function () {
+        var question = $('#questionInput').val();
+        
+        $.ajax({
+          url: 'http://127.0.0.1:5000/query',
+          type: 'POST',
+          data: { query: question },
+          success: function (response) {
+            $('#chatbox').append('<p>User: ' + question + '</p>');
+            $('#chatbox').append('<p>Bot: ' + response.answer + '</p>');  // Ensure response is parsed correctly
+          },
+          error: function () {
+            $('#chatbox').append('<p>Failed to get response.</p>');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
