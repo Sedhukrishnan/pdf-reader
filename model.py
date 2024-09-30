@@ -1,5 +1,6 @@
 import os
 import openai
+from langchain_community.llms import OpenAI
 from flask import Flask, request, jsonify, render_template
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -9,18 +10,19 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredWordDocumentLoader, UnstructuredExcelLoader
 from werkzeug.utils import secure_filename
 from flask_cors import CORS
+from langchain_community.chat_models import ChatOpenAI
 
 # Ensure OpenAI API key is set
-openai.api_key = ''
-embeddings = OpenAIEmbeddings(api_key=openai.api_key)
+openai_api_key = ''
+if not openai_api_key:
+    raise ValueError("OpenAI API key is missing. Please set the 'OPENAI_API_KEY' environment variable.")
 
+# Initialize OpenAI Embeddings with the correct model
+embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key, model="text-embedding-ada-002")
 
 # Flask setup
 app = Flask(__name__)
-CORS(app)  # This will enable CORS for all routes
-CORS(app, supports_credentials=True)
-CORS(app, resources={r"/upload": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000", "http://127.0.0.1:5000/upload",]}})
-# CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/upload": {"origins": ["http://localhost:5000", "http://127.0.0.1:5000"]}})
 
 UPLOAD_FOLDER = 'uploads/'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -73,7 +75,6 @@ def upload_files():
 
     # Use OpenAI Embeddings to embed the documents
     try:
-        embeddings = OpenAIEmbeddings(api_key=openai.api_key)  # Update this line
         vector_store = FAISS.from_documents(docs, embeddings)
     except Exception as e:
         return jsonify({'error': f'Error creating embeddings: {str(e)}'}), 500
@@ -92,17 +93,23 @@ def query():
     if not query_text:
         return jsonify({'error': 'Query cannot be empty'}), 400
 
-    # Use OpenAI LLM for querying
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=OpenAIEmbeddings(model_name="text-davinci-003"),  # Using OpenAI LLM
-        chain_type="stuff",
-        retriever=vector_store.as_retriever()
-    )
+    # Use OpenAI LLM (GPT) for querying
+    try:
+        # Update to use gpt-3.5-turbo
+        llm = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=openai_api_key)
+        qa_chain = RetrievalQA.from_chain_type(
+            llm=llm,  # Using OpenAI GPT model for querying
+            chain_type="stuff",
+            retriever=vector_store.as_retriever()
+        )
 
-    # Get the answer by running the query through the QA chain
-    answer = qa_chain.run(query_text)
+        # Get the answer by running the query through the QA chain
+        answer = qa_chain.run(query_text)
+        return jsonify({'answer': answer}), 200
+    except Exception as e:
+        return jsonify({'error': f'Error processing query: {str(e)}'}), 500
 
-    return jsonify({'answer': answer}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
